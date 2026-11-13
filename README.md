@@ -1,6 +1,6 @@
 # Steady 90
 
-A native Android habit companion built with Kotlin and Jetpack Compose (v0.2.0). Local, encrypted records; no account, analytics, advertising or Internet permission.
+A native Android habit companion built with Kotlin and Jetpack Compose (v0.3.0). Local, encrypted records; no account, analytics, advertising or Internet permission.
 
 ## Previews
 
@@ -15,10 +15,16 @@ Download `steady90-preview.apk` from [GitHub Releases](../../releases) (or build
 1. Complete the short setup and choose your reason and book.
 2. In Google Fit: **Profile → Settings → Health Connect → Sync Fit with Health Connect**. Allow sleep and steps to be shared.
 3. In Steady 90: **Plan → Connect Health Connect**, then grant read access to sleep and steps.
-4. Sync your wristband with its companion app, then reopen Steady 90 or tap **Sync now**.
+4. Sync your wristband with its companion app, then reopen Steady 90 or tap **Plan → Sleep & steps → Sync now**.
 5. If sleep is missing, check Health Connect itself for sleep records and the source app's write permission. Seeing sleep in Google Fit does not by itself guarantee Health Connect has received it.
 
 Health Connect is built into Android 14+. Earlier supported Android versions need the Health Connect app. Manual logging remains available without it.
+
+## New in 0.3
+
+- A quieter Today screen: Health Connect controls live in **Plan → Sleep & steps**; the restedness question is removed. Automatic health refresh continues on opening the app.
+- **Read → Change book** and **Mark as finished** let you choose a new title or keep a dated list of finished books. Finishing a book leaves the current timer and reading totals intact. Choose your next book or undo the last finish before selecting another.
+- Existing books, timers and daily records are preserved when updating, including previously saved restedness ratings. Finished books are included in encrypted storage and JSON exports.
 
 ## New in 0.2
 
@@ -38,7 +44,7 @@ The reminder is a cue to use a coping strategy, not a clinically validated porn-
 - 20-minute reading sessions, book selection, pause/resume, explicit save, and manual daily totals. A running timer uses Android monotonic time and survives app recreation/screen-off. Sessions cap at 20 minutes and belong to their starting date. After a phone reboot, only previously paused time is retained. There is no completion alarm.
 - Optional alcohol and porn check-ins; unlogged days remain unknown. Alcohol logging uses ml × ABV × 0.789, with a direct grams option for mixed drinks. Lapses never reset the journey.
 - Two-minute urge pause, trigger/action selection and before/after intensity logging. This is a coping aid, not withdrawal management or clinical treatment.
-- Sleep, restedness, step totals, strength sessions and bedtime-routine tracking.
+- Sleep, step totals, strength sessions and bedtime-routine tracking.
 - Optional hydration, writing, balanced-meal and cold-shower logs.
 - Cumulative progress, a 90-day activity grid, a seven-day reading/sleep summary, reading milestones and a personal reward.
 - Editable targets and evidence summaries with research links.
@@ -65,7 +71,7 @@ Requires JDK 17, Android SDK platform 36 and build tools 35.0.0. Set `ANDROID_HO
 
 Development APK: `app/build/outputs/apk/debug/app-debug.apk`. Smaller preview APK: `app/build/outputs/apk/release/app-release.apk`. The release build is deliberately signed with the local debug key for personal installation; replace that signing configuration before any store distribution.
 
-The Gradle wrapper pins 8.11.1, Android Gradle Plugin 8.9.2, Kotlin 2.1.20 and stable Health Connect 1.1.0. Dependencies are deliberately pinned. The app targets Android 15 and compiles against API 36. See [VALIDATION.md](VALIDATION.md) for automated and emulator test results.
+The Gradle wrapper pins 9.7.1, Android Gradle Plugin 8.9.2, Kotlin 2.1.20 and stable Health Connect 1.1.0. Dependencies are deliberately pinned. The app targets Android 15 and compiles against API 36. See [VALIDATION.md](VALIDATION.md) for automated and emulator test results.
 
 ## Privacy and limits
 

@@ -163,15 +163,6 @@ import kotlin.math.roundToInt
             Text(if (d.manualSleepMinutes != null) "Manually recorded" else d.sleepWindow.ifBlank { "Missing sleep is not a failed day." }, color = Mist, style = MaterialTheme.typography.bodyMedium)
             Text("Your reference: ${p.sleepGoal} hours · no pass or fail", color = Mist, fontSize = 12.sp)
             if (d.sleepSource.isNotBlank() && d.manualSleepMinutes == null) Text("Source: ${d.sleepSource}", color = Mist, fontSize = 11.sp)
-            Text("How rested do you feel?", style = MaterialTheme.typography.bodyMedium)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                (1..5).forEach { rating -> FilterChip(selected = d.rested == rating, onClick = { a.editDay(date) { it.copy(rested = if (d.rested == rating) 0 else rating) } }, label = { Text("$rating") }) }
-            }
-            Text("1 = drained · 5 = refreshed", color = Mist, fontSize = 12.sp)
-            if (date == a.today) {
-                Text(a.healthMessage, color = Mist, style = MaterialTheme.typography.bodyMedium)
-                Row { TextButton(onClick = { a.connectHealth() }) { Text("Connect") }; TextButton(onClick = { a.syncHealth() }, enabled = !a.syncing) { Text(if (a.syncing) "Syncing…" else "Sync now") } }
-            }
         }
         ActionCard(Icons.Outlined.MenuBook, "Read a little, grow a little", "${Metrics.minutes(d.readingSeconds)} / ${p.readingGoal} minutes", d.readingSeconds.toFloat() / (p.readingGoal * 60), Lime,
             if (date == a.today) "Open reading timer" else "Log reading", if (date == a.today) read else { { dialog = "reading" } })
@@ -247,7 +238,9 @@ import kotlin.math.roundToInt
 
 @Composable fun ReadingScreen(a: MainActivity) {
     var tick by remember { mutableIntStateOf(0) }
-    var editBook by remember { mutableStateOf(false) }
+    var editBook by rememberSaveable { mutableStateOf(false) }
+    var finishBook by rememberSaveable { mutableStateOf(false) }
+    val currentBook = a.data.plan.book
     LaunchedEffect(a.data.timer) { while (true) { tick++; delay(1000) } }
     val elapsed = tick.let { a.timerSeconds() }; val remaining = (1200 - elapsed).coerceAtLeast(0)
     val t = a.data.timer; val running = t?.running == true && t.boot == a.boot() && remaining > 0
@@ -255,8 +248,15 @@ import kotlin.math.roundToInt
         Heading("A LITTLE EVERY DAY", "Turn a page.\nFind some space.", "Twenty minutes with a book. Nothing else to keep up with.")
         PanelCard {
             TinyLabel("ON YOUR NIGHTSTAND", Lime)
-            Text(a.data.plan.book.ifBlank { "Your next good book" }, style = MaterialTheme.typography.headlineMedium)
-            TextButton(onClick = { editBook = true }) { Text(if (a.data.plan.book.isBlank()) "Choose a book" else "Change book") }
+            Text(currentBook.ifBlank { "Your next good book" }, style = MaterialTheme.typography.headlineMedium)
+            if (currentBook.isBlank()) {
+                OutlinedButton(onClick = { editBook = true }) { Text(if (a.data.finishedBooks.isEmpty()) "Choose a book" else "Choose next book") }
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { editBook = true }, modifier = Modifier.weight(1f)) { Text("Change book", textAlign = TextAlign.Center) }
+                    TextButton(onClick = { finishBook = true }, modifier = Modifier.weight(1f)) { Text("Mark as finished", textAlign = TextAlign.Center) }
+                }
+            }
         }
         Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
             Canvas(Modifier.size(200.dp)) {
@@ -280,8 +280,29 @@ import kotlin.math.roundToInt
             Text("${a.data.days.values.sumOf { it.readingSeconds } / 60} minutes of reading", style = MaterialTheme.typography.titleLarge)
             Text("A short session still counts. You can also edit a day's reading total on Today.", color = Mist)
         }
+        if (a.data.finishedBooks.isNotEmpty()) PanelCard {
+            SectionTitle("Books finished", a.data.finishedBooks.size.toString())
+            a.data.finishedBooks.asReversed().forEach { book ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(book.title, style = MaterialTheme.typography.titleMedium)
+                    Text("Finished ${LocalDate.parse(book.finishedOn).format(DateTimeFormatter.ofPattern("d MMM yyyy"))}", color = Mist, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            if (currentBook.isBlank()) TextButton(onClick = { a.change { it.undoLastBookFinish() } }) { Text("Undo last finish") }
+        }
     }
-    if (editBook) TextDialog("Your current book", "Title and author", a.data.plan.book, { editBook = false }) { title -> a.change { it.copy(plan = it.plan.copy(book = title)) } }
+    if (editBook) TextDialog(if (currentBook.isBlank()) "Choose a book" else "Change book", "Title and author", currentBook, { editBook = false }) { title -> a.change { it.copy(plan = it.plan.copy(book = title)) } }
+    if (finishBook) AlertDialog(
+        onDismissRequest = { finishBook = false },
+        title = { Text("Finished this book?") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(currentBook, style = MaterialTheme.typography.titleMedium)
+            Text("Add it to your finished books. Then choose your next read whenever you're ready.")
+            if (t != null) Text("Your timer stays as it is. Save your reading session separately.", color = Mist)
+        } },
+        confirmButton = { TextButton(onClick = { a.change { it.finishBook(a.today) }; finishBook = false }) { Text("Finish book") } },
+        dismissButton = { TextButton(onClick = { finishBook = false }) { Text("Keep reading") } }
+    )
 }
 
 @Composable fun ResetScreen(a: MainActivity) {
@@ -443,11 +464,12 @@ import kotlin.math.roundToInt
         }
         PanelCard {
             SectionTitle("Sleep & steps")
-            Text(a.healthMessage, color = Mist)
+            Text(if (a.syncing) "Syncing sleep & steps…" else a.healthMessage, color = Mist)
+            Text("Sleep and steps sync automatically when you open the app. Manage the connection or sync again here.", color = Mist, style = MaterialTheme.typography.bodyMedium)
             Text("Google Fit → Profile → Settings → Sync Fit with Health Connect. Allow sleep and steps sharing, then connect here.", style = MaterialTheme.typography.bodyMedium)
             FullButton("Connect Health Connect", { a.connectHealth() })
-            TextButton(onClick = { a.syncHealth() }, enabled = !a.syncing) { Text(if (a.syncing) "Syncing…" else "Refresh last 8 days") }
-            Text("Imports refresh on opening the app. Missing records stay unknown. Sleep is assigned to the date you woke up; stages are used when supplied, otherwise session duration is an estimate.", color = Mist, style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = { a.syncHealth() }, enabled = !a.syncing) { Text(if (a.syncing) "Syncing…" else "Sync now") }
+            Text("Sync refreshes the last 8 days. Missing records stay unknown. Sleep is assigned to the date you woke up; stages are used when supplied, otherwise session duration is an estimate.", color = Mist, style = MaterialTheme.typography.bodyMedium)
             TinyLabel("SLEEP DATA SOURCE")
             FilterChip(p.sleepOrigin.isEmpty(), { a.change { it.copy(plan = it.plan.copy(sleepOrigin = "")) }; a.syncHealth() }, label = { Text("Automatic · prefer Google Fit") })
             a.origins.forEach { origin -> FilterChip(p.sleepOrigin == origin, { a.change { it.copy(plan = it.plan.copy(sleepOrigin = origin)) }; a.syncHealth() }, label = { Text(origin, fontSize = 11.sp) }) }
@@ -463,7 +485,7 @@ import kotlin.math.roundToInt
         }
         SectionTitle("Why these goals?")
         Evidence(a)
-        Text("Steady 90 · personal preview 0.2\nA habit companion, not medical treatment.", color = Mist, fontSize = 12.sp)
+        Text("Steady 90 · personal preview 0.3\nA habit companion, not medical treatment.", color = Mist, fontSize = 12.sp)
     }
     when (edit) {
         "meditation" -> NumberDialog("Meditation goal", "Minutes per day. Five is a starting point, not a required therapeutic dose.", p.meditationGoal.toString(), 1..120, { edit = "" }) { v -> a.change { it.copy(plan = it.plan.copy(meditationGoal = v ?: 5)) } }

@@ -56,4 +56,25 @@ class DomainTest {
         val reloaded = Codec.decode(Codec.encode(updated))
         assertNull(reloaded.timer); assertEquals(1200, reloaded.day("2026-11-03").readingSeconds)
     }
+    @Test fun finishingBookPersistsWithoutChangingActiveTimerOrProgress() {
+        val data = AppData(plan = Plan(book = "A book — 🪴"),
+            days = mapOf("2026-11-03" to DayLog("2026-11-03", readingSeconds = 1800)),
+            timer = ReadingTimer(1000, 1000, 3, pausedSeconds = 90, date = "2026-11-03"),
+            finishedBooks = listOf(FinishedBook("An earlier book", "2026-11-01")))
+        val finished = Codec.decode(Codec.encode(data.finishBook("2026-11-13")))
+        assertEquals("", finished.plan.book)
+        assertEquals(listOf(FinishedBook("An earlier book", "2026-11-01"), FinishedBook("A book — 🪴", "2026-11-13")), finished.finishedBooks)
+        assertEquals(data.timer, finished.timer)
+        assertEquals(data.days, finished.days)
+        assertEquals(finished, finished.finishBook("2026-11-13"))
+        assertEquals(data, finished.undoLastBookFinish())
+        val nextBook = finished.copy(plan = finished.plan.copy(book = "The next book"))
+        assertEquals(nextBook, nextBook.undoLastBookFinish())
+    }
+    @Test fun existingRecordsLoadWithoutFinishedBooksAndKeepPriorRestedRatings() {
+        val data = AppData(plan = Plan(book = "My current read"),
+            days = mapOf("2026-11-03" to DayLog("2026-11-03", readingSeconds = 600, rested = 4)))
+        val legacy = org.json.JSONObject(Codec.encode(data)).apply { remove("finishedBooks") }
+        assertEquals(data, Codec.decode(legacy.toString()))
+    }
 }

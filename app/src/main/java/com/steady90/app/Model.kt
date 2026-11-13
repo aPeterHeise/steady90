@@ -33,6 +33,7 @@ data class DayLog(
 }
 data class Urge(val at: Long, val kind: String, val trigger: String, val action: String, val before: Int, val after: Int)
 data class ReadingTimer(val startedWall: Long, val startedElapsed: Long, val boot: Int, val pausedSeconds: Int = 0, val running: Boolean = true, val date: String)
+data class FinishedBook(val title: String, val finishedOn: String)
 data class Plan(
     val started: String = LocalDate.now().toString(), val onboarded: Boolean = false,
     val why: String = "More energy. More attention. More time for what matters.",
@@ -44,9 +45,19 @@ data class Plan(
     val reminderEnabled: Boolean = false, val reminderHour: Int = 21, val reminderMinute: Int = 0,
     val copingPlan: String = "If I start scrolling out of boredom at night, I will put my phone down and read a page."
 )
-data class AppData(val plan: Plan = Plan(), val days: Map<String, DayLog> = emptyMap(), val urges: List<Urge> = emptyList(), val timer: ReadingTimer? = null) {
+data class AppData(val plan: Plan = Plan(), val days: Map<String, DayLog> = emptyMap(), val urges: List<Urge> = emptyList(), val timer: ReadingTimer? = null, val finishedBooks: List<FinishedBook> = emptyList()) {
     fun day(date: String) = days[date] ?: DayLog(date)
     fun updateDay(date: String, change: (DayLog) -> DayLog) = copy(days = days + (date to change(day(date))))
+    fun finishBook(date: String): AppData {
+        val title = plan.book.trim()
+        if (title.isEmpty()) return this
+        return copy(plan = plan.copy(book = ""), finishedBooks = finishedBooks + FinishedBook(title, date))
+    }
+    fun undoLastBookFinish(): AppData {
+        val book = finishedBooks.lastOrNull() ?: return this
+        if (plan.book.isNotBlank()) return this
+        return copy(plan = plan.copy(book = book.title), finishedBooks = finishedBooks.dropLast(1))
+    }
 }
 
 object Metrics {
@@ -92,6 +103,7 @@ object Codec {
             .put("wins", d.wins).put("note", d.note).put("meditationMinutes", d.meditationMinutes)) }
         root.put("days", days)
         root.put("urges", JSONArray().apply { data.urges.forEach { u -> put(JSONObject().put("at", u.at).put("kind", u.kind).put("trigger", u.trigger).put("action", u.action).put("before", u.before).put("after", u.after)) } })
+        root.put("finishedBooks", JSONArray().apply { data.finishedBooks.forEach { book -> put(JSONObject().put("title", book.title).put("finishedOn", book.finishedOn)) } })
         data.timer?.let { t -> root.put("timer", JSONObject().put("startedWall", t.startedWall).put("startedElapsed", t.startedElapsed).put("boot", t.boot).put("pausedSeconds", t.pausedSeconds).put("running", t.running).put("date", t.date)) }
         return root.toString(2)
     }
@@ -115,7 +127,12 @@ object Codec {
         val urges = mutableListOf<Urge>(); val ua = root.optJSONArray("urges") ?: JSONArray()
         for (i in 0 until ua.length()) { val u = ua.getJSONObject(i); urges += Urge(u.getLong("at"), u.getString("kind"), u.getString("trigger"), u.getString("action"), u.getInt("before"), u.getInt("after")) }
         val t = root.optJSONObject("timer")?.let { ReadingTimer(it.getLong("startedWall"), it.getLong("startedElapsed"), it.getInt("boot"), it.optInt("pausedSeconds"), it.optBoolean("running"), it.getString("date")) }
-        return AppData(plan, days, urges, t)
+        val books = root.optJSONArray("finishedBooks") ?: JSONArray()
+        val finishedBooks = (0 until books.length()).map { index ->
+            val book = books.getJSONObject(index)
+            FinishedBook(book.getString("title"), book.getString("finishedOn"))
+        }
+        return AppData(plan, days, urges, t, finishedBooks)
     }
     private fun JSONObject.nullInt(key: String) = if (isNull(key)) null else getInt(key)
     private fun JSONObject.nullLong(key: String) = if (isNull(key)) null else getLong(key)

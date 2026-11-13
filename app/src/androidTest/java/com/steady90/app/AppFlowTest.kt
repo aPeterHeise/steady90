@@ -42,6 +42,54 @@ class AppFlowTest {
         }
         ui.onNodeWithText("Start 20 minutes").assertExists()
     }
+    @Test fun changingAndFinishingBooksPreservesTimerAndSurvivesRecreation() {
+        start()
+        ui.onNodeWithText("Read", useUnmergedTree = true).performClick()
+        ui.onNodeWithText("Choose a book").performClick()
+        ui.onNode(hasSetTextAction()).performTextReplacement("First book")
+        ui.onNodeWithText("Save").performClick()
+        ui.onNodeWithText("Start 20 minutes").performScrollTo().performClick()
+        ui.onNodeWithText("Change book").performScrollTo().performClick()
+        ui.onNode(hasSetTextAction()).performTextReplacement("Second book")
+        ui.onNodeWithText("Save").performClick()
+        lateinit var timer: ReadingTimer
+        ui.runOnIdle {
+            assertEquals("Second book", ui.activity.data.plan.book)
+            assertTrue(ui.activity.data.finishedBooks.isEmpty())
+            timer = ui.activity.data.timer!!
+            ui.activity.editDay(ui.activity.today) { it.copy(readingSeconds = 600) }
+        }
+        ui.onNodeWithText("Mark as finished").performClick()
+        ui.onNodeWithText("Keep reading").performClick()
+        ui.runOnIdle { assertEquals("Second book", ui.activity.data.plan.book) }
+        ui.onNodeWithText("Mark as finished").performClick()
+        ui.onNodeWithText("Finish book").performClick()
+        ui.activityRule.scenario.recreate()
+        ui.onNodeWithText("Choose next book").assertExists()
+        ui.onNodeWithText("Books finished").performScrollTo().assertIsDisplayed()
+        ui.runOnIdle {
+            assertEquals(listOf(FinishedBook("Second book", ui.activity.today)), ui.activity.data.finishedBooks)
+            assertEquals(timer, ui.activity.data.timer)
+            assertEquals(600, ui.activity.data.day(ui.activity.today).readingSeconds)
+        }
+        ui.onNodeWithText("Undo last finish").performScrollTo().performClick()
+        ui.runOnIdle {
+            assertEquals("Second book", ui.activity.data.plan.book)
+            assertTrue(ui.activity.data.finishedBooks.isEmpty())
+            assertEquals(timer, ui.activity.data.timer)
+        }
+        ui.onNodeWithText("Mark as finished").performScrollTo().performClick()
+        ui.onNodeWithText("Finish book").performClick()
+        ui.onNodeWithText("Choose next book").performScrollTo().performClick()
+        ui.onNode(hasSetTextAction()).performTextReplacement("Third book")
+        ui.onNodeWithText("Save").performClick()
+        ui.activityRule.scenario.recreate()
+        ui.runOnIdle {
+            assertEquals("Third book", ui.activity.data.plan.book)
+            assertEquals(1, ui.activity.data.finishedBooks.size)
+            assertEquals(timer, ui.activity.data.timer)
+        }
+    }
     @Test fun honestCheckInsAndManualSleepSurviveRecreation() {
         start()
         ui.onNodeWithText("Edit", useUnmergedTree = true).performScrollTo().performClick()
