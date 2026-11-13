@@ -1,0 +1,27 @@
+# Gradle & build outputs
+.gradle/
+**/build/
+.kotlin/
+.cxx/
+.externalNativeBuild/
+
+# Local config & IDE
+local.properties
+*.iml
+.idea/
+captures/
+*.hprof
+
+# Signing keys
+*.jks
+*.keystore
+
+# Release binaries & archives (publish APKs via GitHub Releases instead)
+*.apk
+*.aab
+*.ap_
+dist/*.zip
+dist/SHA256SUMS.txt
+
+# OS metadata
+.DS_Store
